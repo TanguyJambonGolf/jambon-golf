@@ -14,7 +14,7 @@ const $app = document.getElementById('app');
 const ls = window.localStorage;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const FIRST_YEAR = 2027;
+const FIRST_YEAR = 2026;   // TEST du 03/12/2026 : remettre 2027 au reset des données
 const seasonNow = () => Math.max(FIRST_YEAR, new Date().getFullYear());
 const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const STATUS = { en_cours: 'En cours', a_verifier: 'À vérifier', validee: 'Validée ✔' };
