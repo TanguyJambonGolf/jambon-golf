@@ -640,19 +640,13 @@ function screenSettings() {
     <p class="small">Le changement s'applique tout de suite au classement.</p></div>`;
 }
 
-function randomCode() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = new Uint8Array(24); crypto.getRandomValues(b);
-  return [...b].map(x => alphabet[x % alphabet.length]).join('');
-}
-
 function screenCode() {
   if (!isAdmin()) return screenAdminLogin();
-  const link = S.newCode ? `${location.origin}${location.pathname.replace(/[^/]*$/, '')}#c=${S.newCode}` : '';
-  const msg = `Voici le lien de l'appli de scores des Jambons. Ouvre-le une seule fois sur ton téléphone, choisis ton nom, et c'est tout :\n${link}`;
+  const link = `${location.origin}${location.pathname.replace(/[^/]*$/, '')}index.html`;
+  const msg = `Voici le lien de l'appli de scores des Jambons. Ouvre-le, choisis ton nom, et c'est tout :\n${link}`;
   return `<button class="link" data-act="admin">‹ Admin</button><div class="card"><h2>Lien d'accès WhatsApp</h2>
-    <p>Le code est dans le lien, personne ne le tape. Pour une première installation, ou si le lien a fuité, génère un nouveau code : l'ancien lien cesse de fonctionner et tout le monde doit rouvrir le nouveau lien (une seule fois).</p>
-    <button class="primary" data-act="gen-code">${S.newCode ? 'Générer un autre code' : 'Générer un nouveau code'}</button>
-    ${link ? `<pre class="wa">${esc(link)}</pre><a class="btn" href="${esc(whatsappLink(msg))}" target="_blank" rel="noopener">Envoyer dans WhatsApp</a><p class="note">Ce lien n'est affiché qu'une fois : envoie-le maintenant.</p>` : ''}</div>`;
+    <p>Le code du groupe est intégré à l'appli : le lien simple suffit, sans rien coller.</p>
+    <pre class="wa">${esc(link)}</pre><a class="btn" href="${esc(whatsappLink(msg))}" target="_blank" rel="noopener">Envoyer dans WhatsApp</a></div>`;
 }
 
 // ------------------------------------------------------------------ actions
@@ -735,7 +729,6 @@ const actions = {
   guests: async () => { await loadYear(seasonNow()); go('guests'); },
   settings: async () => { await loadYear(seasonNow()); go('settings'); },
   code: () => { S.newCode = ''; go('code'); },
-  'gen-code': () => adminDo(async () => { const c = randomCode(); await api.setMemberCode(c); S.newCode = c; S.code = c; ls.setItem('golf.code', c); render(); }),
   'add-guest': () => {
     const name = document.getElementById('g-name').value.trim(); if (!name) return;
     adminDo(async () => {
