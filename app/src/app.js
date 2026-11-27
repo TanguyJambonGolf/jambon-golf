@@ -5,7 +5,7 @@ import { createDemoApi } from './demo.js';
 import { createQueue } from './queue.js';
 import { buildRoundView, canEdit, canValidate, inDraw, stepScore, strokesReceived, crossScore } from './model.js';
 import { buildYear, playerSheet } from './year.js';
-import { makeGroups, groupSizes, teeTimes, whatsappText, whatsappLink, nextGuestCode } from './draw.js';
+import { makeGroups, groupSizes, teeTimes, whatsappText, whatsappLink, whatsappToLink, golfMail, mailtoLink, nextGuestCode } from './draw.js';
 import { holePoints, playingHandicap } from '../../engine/engine.js';
 import { prepDay, prepNearestDay, prepNearestAnnual, prepAnnual, prepDraw } from './sharedata.js';
 import { draw as drawImage, toBlob, shareFiles, loadLogo } from './share.js';
@@ -20,7 +20,7 @@ const STATUS = { en_cours: 'En cours', a_verifier: 'À vérifier', validee: 'Val
 const S = {
   screen: 'loading', code: ls.getItem('golf.code') || '', actor: ls.getItem('golf.actor') || '',
   players: [], rounds: [], roundId: null, data: null, view: null, groupIdx: 0, hole: 1, online: true, toast: '', error: '',
-  polls: [], poll: null, pollAnswers: [], year: new Date().getFullYear(), yearData: null, sheetId: null, courses: [], tees: [], draw: null, guestsOpen: false, newCode: '',
+  contacts: {}, polls: [], poll: null, pollAnswers: [], year: new Date().getFullYear(), yearData: null, sheetId: null, courses: [], tees: [], draw: null, guestsOpen: false, newCode: '',
 };
 let api, queue;
 const isAdmin = () => !!api && api.isAdmin();
@@ -65,6 +65,7 @@ async function openHome() {
 async function openRound(id) {
   S.roundId = id; S.data = null; S.view = null;
   go('round');
+  if (isAdmin()) { try { await loadContacts(); } catch { /* sans contacts */ } }
   await refresh();
   if (S.view) S.groupIdx = Math.max(0, S.view.groups.findIndex(g => g.members.some(m => m.playerId === S.actor)));
   render();
@@ -117,7 +118,7 @@ setInterval(() => { if (['round', 'hole', 'recap'].includes(S.screen)) (queue.si
 function render() {
   const y = window.scrollY;
   const fn = { loading: () => '<p class="center">Chargement…</p>', offline: screenOffline, nocode: screenNoCode, who: screenWho, home: screenHome, round: screenRound, hole: screenHole, recap: screenRecap,
-    ranking: screenRanking, sheet: screenSheet, share: screenShare, adminLogin: screenAdminLogin, admin: screenAdmin, draw: screenDraw, adminRound: screenAdminRound, guests: screenGuests, settings: screenSettings, code: screenCode, pollAdmin: screenPollAdmin }[S.screen];
+    ranking: screenRanking, sheet: screenSheet, share: screenShare, adminLogin: screenAdminLogin, admin: screenAdmin, draw: screenDraw, adminRound: screenAdminRound, guests: screenGuests, settings: screenSettings, code: screenCode, pollAdmin: screenPollAdmin, contacts: screenContacts }[S.screen];
   const showNav = !['loading', 'nocode', 'offline', 'who', 'hole', 'recap'].includes(S.screen);
   $app.innerHTML = header() + `<main class="${showNav ? 'withnav' : ''}">${fn()}</main>` + (showNav ? nav() : '') + (S.toast ? `<div class="toast">${esc(S.toast)}</div>` : '');
   window.scrollTo(0, y);
@@ -193,7 +194,7 @@ function screenRound() {
     <button class="secondary" data-act="recap">Récap et validation</button>
     ${adm ? '<button class="secondary" data-act="admin-round">Gérer la journée (admin)</button>' : ''}</div>
     <div class="card"><h3>Tirage du jour</h3>${v.groups.map(gr => `<div class="dl ${gr.members.some(m => m.playerId === S.actor) ? 'mine' : ''}"><b>${esc(gr.teeTime ? String(gr.teeTime).slice(0, 5) : '--:--')}</b> <span>Groupe ${gr.number}</span><br><small>${gr.members.map(m => esc(m.name) + (m.isGuest ? ' (invité)' : '')).join(' · ')}</small></div>`).join('')}
-      <button class="secondary" data-act="share-open">Partager en images (WhatsApp)</button></div>
+      <button class="secondary" data-act="share-open">Partager en images (WhatsApp)</button>${adm ? golfSendBlock(v) : ''}</div>
     ${mine || adm ? `<div class="card"><h3>Index officiel du jour (groupe ${g.number})</h3><p class="small">À vérifier avant de partir. Le handicap de jeu se recalcule tout seul.</p>${idx}</div>` : ''}
     <div class="card"><h3>Classement du jour ${done ? '' : '(provisoire)'}</h3>${rank || '<p>Pas encore de score.</p>'}</div>
     ${v.par3.length ? `<div class="card"><h3>Nearest</h3>${nearest}</div>` : ''}`;
@@ -340,6 +341,33 @@ function screenAdminLogin() {
     <button class="primary" data-act="admin-login">Se connecter</button>${api.demo ? '<p class="small">Démo : n\'importe quel e-mail.</p>' : ''}</div>`;
 }
 
+// ------------------------------------------------------------------ envoi du tirage au golf
+async function loadContacts() {
+  S.contacts = Object.fromEntries((await api.settings()).filter(x => x.key.startsWith('contact_')).map(x => [x.key.slice(8), x.value]));
+}
+
+function golfSendBlock(v) {
+  const c = S.contacts[v.round.course_id] || {};
+  const { subject, body } = golfMail({ dateLabel: fmtDate(v.round.played_on), courseName: v.course.name,
+    groups: v.groups.map(g => ({ time: g.teeTime ? String(g.teeTime).slice(0, 5) : '', players: g.members.map(m => m.name + (m.isGuest ? ' (invité)' : '')) })) });
+  const mail = mailtoLink({ to: c.email, subject, body });
+  const wa = whatsappToLink(c.whatsapp, body);
+  return `<h3>Envoyer le tirage au golf</h3>
+    <p class="small">${c.email ? 'E-mail : ' + esc(c.email) : 'Pas d\'e-mail enregistré pour ce golf : ton application mail s\'ouvrira sans destinataire.'}</p>
+    <a class="btn mail" href="${esc(mail)}">Envoyer par e-mail</a>
+    ${c.whatsapp ? `<a class="btn secondary" href="${esc(wa)}" target="_blank" rel="noopener">Envoyer par WhatsApp (${esc(c.whatsapp)})</a>` : ''}
+    <button class="link" data-act="contacts">Modifier les contacts des golfs</button>`;
+}
+
+function screenContacts() {
+  if (!isAdmin()) return screenAdminLogin();
+  const rows = S.courses.map(c => { const k = S.contacts[c.id] || {}; return `<div class="card"><b>${esc(c.name)}</b>
+    <label class="fld">E-mail<input type="email" value="${esc(k.email || '')}" data-act="contact-set" data-c="${esc(c.id)}" data-f="email" placeholder="reservation@golf.mu"></label>
+    <label class="fld">WhatsApp (avec indicatif)<input type="tel" value="${esc(k.whatsapp || '')}" data-act="contact-set" data-c="${esc(c.id)}" data-f="whatsapp" placeholder="230 5xxx xxxx"></label></div>`; }).join('');
+  return `<button class="link" data-act="admin">‹ Admin</button><h2>Contacts des golfs</h2>
+    <p class="small">Utilisés par le bouton « Envoyer le tirage au golf » de l'écran de la journée. L'envoi se fait depuis ton application mail ou WhatsApp : tu vérifies et tu appuies sur envoyer.</p>${rows}`;
+}
+
 // ------------------------------------------------------------------ sondage hebdomadaire
 const fmtClose = iso => new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Indian/Mauritius' }).replace(':', 'h');
 const pollOpen = p => Date.now() >= Date.parse(p.opens_at) && Date.now() <= Date.parse(p.closes_at);
@@ -389,6 +417,7 @@ function screenAdmin() {
   return `<div class="card"><h2>Admin</h2>
     <button class="primary" data-act="draw-new">Nouvelle journée · tirage</button>
     <button class="secondary" data-act="poll-admin">Sondage de la semaine</button>
+    <button class="secondary" data-act="contacts">Contacts des golfs (envoi du tirage)</button>
     <button class="secondary" data-act="guests">Invités</button>
     <button class="secondary" data-act="settings">Réglages du classement</button>
     <button class="secondary" data-act="code">Lien d'accès WhatsApp</button>
@@ -560,6 +589,7 @@ const setScore = (m, sc) => addOp({ type: 'score', card: m.cardId, hole: S.hole,
 const reloadRound = async () => { await refresh(); };
 
 const actions = {
+  contacts: async () => { try { S.courses = await api.courses(); await loadContacts(); } catch (e) { return toast(e.message); } go('contacts'); },
   'poll-answer': async el => {
     const a = el.dataset.a || null;
     try { await api.send({ type: 'poll', poll: S.poll.id, answer: a }, S.code, S.actor); S.pollAnswers = await api.pollAnswers(S.poll.id); render(); }
@@ -571,9 +601,6 @@ const actions = {
     const c = new Date(d); c.setDate(c.getDate() - 3);
     await api.createPoll({ play_date: localDate(d), closes_at: `${localDate(c)}T17:30:00+04:00` });
   }, async () => { await loadPoll(); render(); }),
-  'poll-course': el => adminDo(() => api.patchPoll(S.poll.id, { course_id: el.value || null }), async () => { await loadPoll(); render(); }),
-  'poll-close': el => adminDo(() => api.patchPoll(S.poll.id, { closes_at: el.value + ':00+04:00' }), async () => { await loadPoll(); render(); }),
-  'poll-set': el => adminDo(() => api.setPollAnswer(S.poll.id, el.dataset.p, el.value || null), async () => { S.pollAnswers = await api.pollAnswers(S.poll.id); render(); }),
   pick: async el => { S.actor = el.dataset.id; ls.setItem('golf.actor', S.actor); await openHome(); },
   who: () => go('who'),
   home: () => openHome(),
@@ -649,6 +676,14 @@ const actions = {
 
 // champs (select / input / case) : déclenchés au changement
 const changes = {
+  'contact-set': el => adminDo(async () => {
+    const id = el.dataset.c, cur = S.contacts[id] || {};
+    const val = { ...cur, [el.dataset.f]: el.value.trim() };
+    await api.setSetting('contact_' + id, val); S.contacts[id] = val;
+  }, async () => { toast('Enregistré'); }),
+  'poll-course': el => adminDo(() => api.patchPoll(S.poll.id, { course_id: el.value || null }), async () => { await loadPoll(); render(); }),
+  'poll-close': el => adminDo(() => api.patchPoll(S.poll.id, { closes_at: el.value + ':00+04:00' }), async () => { await loadPoll(); render(); }),
+  'poll-set': el => adminDo(() => api.setPollAnswer(S.poll.id, el.dataset.p, el.value || null), async () => { S.pollAnswers = await api.pollAnswers(S.poll.id); render(); }),
   nearest: el => addOp({ type: 'nearest', round: S.roundId, hole: +el.dataset.hole, player: el.value || null }),
   index: el => {
     const idx = parseFloat(String(el.value).replace(',', '.')); if (!Number.isFinite(idx)) return;

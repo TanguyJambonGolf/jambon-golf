@@ -71,3 +71,4 @@ input[type=text], input[type=email], input[type=password], input[type=date], inp
 .shareimg { margin:10px 0 18px; text-align:center; } .shareimg img { width:100%; border-radius:12px; box-shadow:0 1px 4px #0003; }
 .pollbtns { display:flex; gap:8px; margin:10px 0; } .pollbtns button { flex:1; margin:0; }
 .poll details { margin:6px 0; } .poll summary { cursor:pointer; font-weight:600; } .poll p { margin:6px 0; }
+a.btn.mail { background:#0f3d2e; color:#fff; }

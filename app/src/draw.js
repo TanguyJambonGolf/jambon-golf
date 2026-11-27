@@ -91,6 +91,22 @@ export function whatsappText({ dateLabel, courseName, groups, times }) {
 
 export const whatsappLink = text => 'https://wa.me/?text=' + encodeURIComponent(text);
 
+/** WhatsApp vers un numéro précis (chiffres seulement, indicatif compris : 230...). */
+export const whatsappToLink = (number, text) => 'https://wa.me/' + String(number || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(text);
+
+export const SIGNATURE = 'Tanguy Le Texier\nLes Jambons';
+
+/** Mail au golf : objet + texte avec les départs. groups : [{ time:'08:00', players:[noms] }] */
+export function golfMail({ dateLabel, courseName, groups }) {
+  const n = groups.reduce((a, g) => a + g.players.length, 0);
+  const subject = `Les Jambons - départs du ${dateLabel}`;
+  const lines = groups.map(g => `${g.time || '--:--'} : ${g.players.join(' / ')}`).join('\n');
+  const body = `Bonjour,\n\nVoici le tirage des Jambons pour le ${dateLabel}${courseName ? ' (' + courseName + ')' : ''}, ${n} joueurs :\n\n${lines}\n\nMerci de nous confirmer la réception et les heures de départ.\n\nCordialement,\n${SIGNATURE}`;
+  return { subject, body };
+}
+
+export const mailtoLink = ({ to, subject, body }) => `mailto:${(to || '').trim()}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
 /** Code d'un nouvel invité (INV1, INV2...) sans doublon. */
 export function nextGuestCode(existingCodes) {
   let n = 1;
