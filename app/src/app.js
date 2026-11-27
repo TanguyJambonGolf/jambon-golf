@@ -31,6 +31,7 @@ const isAdmin = () => !!api && api.isAdmin();
 async function boot() {
   const m = /[#&]c=([^&]+)/.exec(location.hash);   // le code est dans le fragment : jamais envoyé à un serveur
   if (m) { S.code = decodeURIComponent(m[1]); ls.setItem('golf.code', S.code); history.replaceState(null, '', location.pathname + location.search); }
+  if (!S.code && CONFIG.groupCode) S.code = CONFIG.groupCode;
   const demo = !CONFIG.supabaseUrl || /[?&]demo/.test(location.search);
   api = demo ? await createDemoApi(ls) : createApi(CONFIG, ls);
   queue = createQueue({ getItem: () => null, setItem() {} });   // en mémoire seulement : sert à réessayer si la connexion saute une seconde
