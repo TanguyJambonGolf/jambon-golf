@@ -148,6 +148,8 @@ function screenOffline() {
 function screenNoCode() {
   return `<div class="card"><img class="biglogo" src="logo.png" alt="Jambon Golf"><h2 class="center">Lien d'accès</h2>${S.error ? `<p class="err">${esc(S.error)}</p>` : ''}
     <p>Ouvre le lien que Tanguy a envoyé dans le groupe WhatsApp. Il suffit de le faire une fois sur ce téléphone.</p>
+    <label class="fld">Ou colle ici ton code d'accès (ou le lien complet)<input type="text" id="code-in" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="jambon-…"></label>
+    <button class="primary" data-act="code-enter">Valider le code</button>
     <button class="secondary" data-act="admin-direct">Je suis l'admin</button></div>`;
 }
 
@@ -677,6 +679,16 @@ const actions = {
     const c = new Date(d); c.setUTCDate(c.getUTCDate() - 3);
     await api.createPoll({ play_date: play, closes_at: `${c.toISOString().slice(0, 10)}T17:30:00+04:00` });
   }, async () => { await loadPoll(); render(); }),
+  'code-enter': async () => {
+    const raw = (document.getElementById('code-in')?.value || '').trim();
+    const m = /[#&]c=([^&\s]+)/.exec(raw);
+    const code = decodeURIComponent(m ? m[1] : raw);
+    if (!code) return toast('Colle ton code d\'accès.');
+    try {
+      if (!(await api.checkCode(code))) return go('nocode', 'Code incorrect : vérifie-le ou redemande le lien dans le groupe WhatsApp.');
+    } catch { return toast('Pas de réseau : réessaie dans un instant.'); }
+    S.code = code; ls.setItem('golf.code', code); await boot();
+  },
   pick: async el => { S.actor = el.dataset.id; ls.setItem('golf.actor', S.actor); await openHome(); },
   who: () => go('who'),
   home: () => openHome(),
