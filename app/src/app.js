@@ -14,13 +14,15 @@ const $app = document.getElementById('app');
 const ls = window.localStorage;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const FIRST_YEAR = 2027;
+const seasonNow = () => Math.max(FIRST_YEAR, new Date().getFullYear());
 const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const STATUS = { en_cours: 'En cours', a_verifier: 'À vérifier', validee: 'Validée ✔' };
 
 const S = {
   screen: 'loading', code: ls.getItem('golf.code') || '', actor: ls.getItem('golf.actor') || '',
   players: [], rounds: [], roundId: null, data: null, view: null, groupIdx: 0, hole: 1, online: true, toast: '', error: '',
-  push: { state: 'unknown' }, contacts: {}, polls: [], poll: null, pollAnswers: [], year: new Date().getFullYear(), yearData: null, sheetId: null, courses: [], tees: [], draw: null, guestsOpen: false, newCode: '',
+  push: { state: 'unknown' }, contacts: {}, polls: [], poll: null, pollAnswers: [], year: seasonNow(), yearData: null, sheetId: null, courses: [], tees: [], draw: null, guestsOpen: false, newCode: '',
 };
 let api, queue;
 const isAdmin = () => !!api && api.isAdmin();
@@ -195,7 +197,7 @@ function screenRound() {
     <button class="secondary" data-act="recap">Récap et validation</button>
     ${adm ? '<button class="secondary" data-act="admin-round">Gérer la journée (admin)</button>' : ''}</div>
     <div class="card"><h3>Tirage du jour</h3>${v.groups.map(gr => `<div class="dl ${gr.members.some(m => m.playerId === S.actor) ? 'mine' : ''}"><b>${esc(gr.teeTime ? String(gr.teeTime).slice(0, 5) : '--:--')}</b> <span>Groupe ${gr.number}</span><br><small>${gr.members.map(m => esc(m.name) + (m.isGuest ? ' (invité)' : '')).join(' · ')}</small></div>`).join('')}
-      <button class="secondary" data-act="share-open">Partager en images (WhatsApp)</button>${adm ? golfSendBlock(v) : ''}</div>
+      ${adm ? `<button class="secondary" data-act="share-open">Partager en images (WhatsApp)</button>${golfSendBlock(v)}` : ''}</div>
     ${mine || adm ? `<div class="card"><h3>Index officiel du jour (groupe ${g.number})</h3><p class="small">À vérifier avant de partir. Le handicap de jeu se recalcule tout seul.</p>${idx}</div>` : ''}
     <div class="card"><h3>Classement du jour ${done ? '' : '(provisoire)'}</h3>${rank || '<p>Pas encore de score.</p>'}</div>
     ${v.par3.length ? `<div class="card"><h3>Nearest</h3>${nearest}</div>` : ''}`;
@@ -265,7 +267,7 @@ function screenRecap() {
 // ------------------------------------------------------------------ classement annuel et fiches
 function screenRanking() {
   const Y = S.yearData;
-  const head = `<div class="yearbar"><button data-act="year" data-d="-1">‹</button><b>Saison ${S.year}</b><button data-act="year" data-d="1">›</button></div>`;
+  const head = `<div class="yearbar"><button data-act="year" data-d="-1" ${S.year <= FIRST_YEAR ? 'disabled' : ''}>‹</button><b>Saison ${S.year}</b><button data-act="year" data-d="1">›</button></div>`;
   if (!Y) return head + (S.online ? '<p class="center">Chargement…</p>' : '<div class="card"><p>Connexion requise pour afficher le classement.</p><button class="primary" data-act="ranking">Réessayer</button></div>');
   const rows = Y.ranking.map(r => `<button class="rkrow" data-act="sheet" data-id="${esc(r.playerId)}"><span class="rkn">${r.rank}</span><span class="rkname">${esc(r.name)}<br><small>net ${r.netTotal} (${r.netCards.length} carte${r.netCards.length > 1 ? 's' : ''}) · brut ${r.grossPoints}</small></span><span class="rkt">${r.total}</span></button>`).join('');
   const ne = Y.nearest.map(r => `<div class="rk"><span>${r.rank}</span><span>${esc(r.name)}</span><span>${r.wins} nearest</span></div>`).join('');
@@ -274,8 +276,8 @@ function screenRanking() {
   return `${head}<div class="card"><h2>Classement annuel</h2>
     <p class="small">Total = ${Y.topN} meilleures cartes net validées + points brut de la carte gross. Seules les cartes validées comptent.</p>
     ${rows || '<p>Aucune carte validée pour le moment.</p>'}
-    <button class="secondary" data-act="share-annual">Partager en images (WhatsApp)</button>
-    <a class="btn" href="${esc(whatsappLink(text))}" target="_blank" rel="noopener">Partager en texte</a></div>
+    ${isAdmin() ? `<button class="secondary" data-act="share-annual">Partager en images (WhatsApp)</button>
+    <a class="btn" href="${esc(whatsappLink(text))}" target="_blank" rel="noopener">Partager en texte</a>` : ''}</div>
     <div class="card"><h3>Nearest (annuel)</h3>${ne || '<p>Aucun nearest pour le moment.</p>'}</div>
     ${gs ? `<div class="card"><h3>Invités</h3>${gs}</div>` : ''}`;
 }
@@ -321,6 +323,7 @@ async function buildShare(from) {
 }
 
 function screenShare() {
+  if (!isAdmin()) return '<div class="card"><p>Réservé à l\'administrateur.</p><button class="primary" data-act="home">Retour</button></div>';
   const sh = S.share;
   if (!sh) return '<p class="center">Préparation des images…</p>';
   const back = sh.from === 'ranking' ? 'ranking' : 'round-back';
@@ -496,7 +499,7 @@ const hjFor = (tee, idx) => (tee && Number.isFinite(idx) ? playingHandicap({ ind
 async function startDraw() {
   go('draw');
   try { [S.courses, S.tees] = await Promise.all([api.courses(), api.tees()]); } catch (e) { return toast(e.message); }
-  await loadYear(new Date().getFullYear());
+  await loadYear(seasonNow());
   const last = {};   // dernier index connu de chaque joueur (cette saison)
   try { const d = await api.year(S.year); const rd = new Map(d.rounds.map(r => [r.id, r.played_on])); d.participations.slice().sort((a, b) => (rd.get(a.round_id) < rd.get(b.round_id) ? -1 : 1)).forEach(p => { last[p.player_id] = p.handicap_index; }); } catch { /* sans historique */ }
   S.players.forEach(p => { const h = p.handicap_index; if (h !== null && h !== undefined && Number.isFinite(Number(h))) last[p.id] = Number(h); });   // l'index actuel du joueur prime
@@ -701,7 +704,7 @@ const actions = {
   'share-one': el => doShare([S.share.sets[+el.dataset.s].items[+el.dataset.i].file]),
   // classement
   ranking: () => openRanking(),
-  year: el => openRanking(S.year + +el.dataset.d),
+  year: el => { const y = S.year + +el.dataset.d; if (y >= FIRST_YEAR) openRanking(y); },
   sheet: async el => { S.sheetId = el.dataset.id; if (!S.rounds.length) S.rounds = await api.rounds().catch(() => []); go('sheet'); },
   // admin
   admin: () => { go('admin'); },
@@ -712,8 +715,8 @@ const actions = {
   },
   'admin-logout': () => { api.adminLogout(); go('admin'); },
   'draw-new': () => startDraw(),
-  guests: async () => { await loadYear(new Date().getFullYear()); go('guests'); },
-  settings: async () => { await loadYear(new Date().getFullYear()); go('settings'); },
+  guests: async () => { await loadYear(seasonNow()); go('guests'); },
+  settings: async () => { await loadYear(seasonNow()); go('settings'); },
   code: () => { S.newCode = ''; go('code'); },
   'gen-code': () => adminDo(async () => { const c = randomCode(); await api.setMemberCode(c); S.newCode = c; S.code = c; ls.setItem('golf.code', c); render(); }),
   'add-guest': () => {
@@ -781,7 +784,7 @@ const changes = {
   'draw-index': el => { const v = parseFloat(String(el.value).replace(',', '.')); S.draw.groups[+el.dataset.g].players[+el.dataset.i].index = Number.isFinite(v) ? v : NaN; render(); },
   'draw-marker': el => { S.draw.groups[+el.dataset.g].markerId = el.value; },
   'adm-tee': el => { const m = S.view.members.find(x => x.participationId === el.dataset.part), tee = S.tees.find(t => t.id === el.value); adminDo(() => api.patchParticipation(m.participationId, { tee_id: tee.id, playing_handicap: hjFor(tee, +el.dataset.index) }), reloadRound); },
-  setting: el => { const v = Math.max(1, Math.round(+el.value)); adminDo(() => api.setSetting(el.dataset.key, v), async () => { await loadYear(new Date().getFullYear()); render(); }); },
+  setting: el => { const v = Math.max(1, Math.round(+el.value)); adminDo(() => api.setSetting(el.dataset.key, v), async () => { await loadYear(seasonNow()); render(); }); },
 };
 
 $app.addEventListener('click', e => {
