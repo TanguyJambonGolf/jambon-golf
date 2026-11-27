@@ -351,6 +351,7 @@ async function startDraw() {
   await loadYear(new Date().getFullYear());
   const last = {};   // dernier index connu de chaque joueur (cette saison)
   try { const d = await api.year(S.year); const rd = new Map(d.rounds.map(r => [r.id, r.played_on])); d.participations.slice().sort((a, b) => (rd.get(a.round_id) < rd.get(b.round_id) ? -1 : 1)).forEach(p => { last[p.player_id] = p.handicap_index; }); } catch { /* sans historique */ }
+  S.players.forEach(p => { const h = p.handicap_index; if (h !== null && h !== undefined && Number.isFinite(Number(h))) last[p.id] = Number(h); });   // l'index actuel du joueur prime
   const course = S.courses.find(c => c.id === 'mont_choisy') || S.courses[0];
   let cfg = {};
   try { cfg = Object.fromEntries((await api.settings()).filter(x => x.key.startsWith('draw_')).map(x => [x.key.slice(5), x.value])); } catch { /* valeurs par défaut */ }
