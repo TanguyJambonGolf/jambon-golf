@@ -1,0 +1,163 @@
+[
+  {
+    "id": "p-rg",
+    "display_name": "Rodolphe G",
+    "code": "RG",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-gdg",
+    "display_name": "Guillaume d G",
+    "code": "GDG",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-nh",
+    "display_name": "Nico H",
+    "code": "NH",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-tlt",
+    "display_name": "Tanguy L T",
+    "code": "TLT",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-gg",
+    "display_name": "Gary G",
+    "code": "GG",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-at",
+    "display_name": "Arnaud T",
+    "code": "AT",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-jpg",
+    "display_name": "Jean-Philippe G",
+    "code": "JPG",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-bd",
+    "display_name": "Bernard D",
+    "code": "BD",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-pz",
+    "display_name": "Philippe Z",
+    "code": "PZ",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-sl",
+    "display_name": "Stephane L",
+    "code": "SL",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-hds",
+    "display_name": "Hugo d S",
+    "code": "HDS",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-ap",
+    "display_name": "Alban P",
+    "code": "AP",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-tbu",
+    "display_name": "Thomas Bu",
+    "code": "TBU",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-jlh",
+    "display_name": "Jean Luc H",
+    "code": "JLH",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-jmp",
+    "display_name": "Jean-Michel P",
+    "code": "JMP",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-tb",
+    "display_name": "Thomas Bo",
+    "code": "TB",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-jd",
+    "display_name": "Jacky D",
+    "code": "JD",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-cg",
+    "display_name": "Carlo G",
+    "code": "CG",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-ac",
+    "display_name": "Arnaud C",
+    "code": "AC",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-tm",
+    "display_name": "Thomas M",
+    "code": "TM",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-tv",
+    "display_name": "Thomas V",
+    "code": "TV",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-ps",
+    "display_name": "Peter S",
+    "code": "PS",
+    "is_guest": false,
+    "active": true
+  },
+  {
+    "id": "p-fm",
+    "display_name": "Franck M",
+    "code": "FM",
+    "is_guest": false,
+    "active": true
+  }
+]
