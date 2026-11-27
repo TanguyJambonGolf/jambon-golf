@@ -33,7 +33,10 @@ export function createApi({ supabaseUrl, supabaseAnonKey }, storage = null) {
     try { body = text ? JSON.parse(text) : null; } catch { /* corps vide */ }
     if (r.status === 401 && session && retry) {
       try { await auth({ refresh_token: session.refresh_token }, 'refresh_token'); }
-      catch (e) { saveSession(null); throw Object.assign(new Error('Session admin expirée : reconnecte-toi.'), { business: true }); }
+      catch (e) {
+        if (e.network) throw e;   // pas de réseau : on garde la session admin, on réessaiera
+        saveSession(null); throw Object.assign(new Error('Session admin expirée : reconnecte-toi.'), { business: true });
+      }
       return call(path, opts, false);
     }
     if (r.status === 416) return [];   // page au-delà de la fin
