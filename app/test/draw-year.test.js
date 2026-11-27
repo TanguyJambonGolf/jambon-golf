@@ -138,3 +138,13 @@ test('historique importé : les 9 meilleurs scores + le brut comptent, le neares
   assert.equal(y.ranking[0].playerId, 'a');
   assert.equal(y.nearest.find(n => n.playerId === 'a').wins, 2);
 });
+
+test('fiche joueur : plus bas score retenu = carte à battre', () => {
+  const players = [{ id: 'a', display_name: 'A', is_guest: false }, { id: 'b', display_name: 'B', is_guest: false }];
+  const hs = [];
+  for (let i = 0; i < 11; i++) hs.push({ id: 'a' + i, played_on: `2026-02-${String(i + 1).padStart(2, '0')}`, player_id: 'a', kind: 'net', points: 20 + i });
+  for (let i = 0; i < 3; i++) hs.push({ id: 'b' + i, played_on: `2026-03-0${i + 1}`, player_id: 'b', kind: 'net', points: 30 + i });
+  const y = buildYear({ rounds: [], participations: [], cards: [], hole_scores: [], holes: [], tees: [], nearest: [], settings: [], history_scores: hs, history_nearest: [] }, players, 2026);
+  assert.equal(playerSheet(y, 'a').lowestCounted, 22);   // 9 meilleures : 30..22
+  assert.equal(playerSheet(y, 'b').lowestCounted, null); // moins de 9 cartes : tout score compte
+});

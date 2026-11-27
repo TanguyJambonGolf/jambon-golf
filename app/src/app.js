@@ -298,7 +298,9 @@ function screenSheet() {
   }).join('');
   return `<button class="link" data-act="ranking">‹ Classement</button>
     <div class="card"><h2>${esc(p.display_name)}</h2>${p.is_guest ? '<p class="note">Invité : pas de classement annuel.</p>' : `<p><b>${sh.row ? sh.row.total : 0} pts</b> · rang ${sh.row ? sh.row.rank : '-'}</p>
-    <p class="small">Moyenne net : ${sh.average ?? '–'} · meilleure carte : ${sh.best ?? '–'}${sh.pending ? ` · ${sh.pending} carte(s) pas encore validée(s)` : ''}</p>`}</div>
+    <p class="small">Moyenne net : ${sh.average ?? '–'} · meilleure carte : ${sh.best ?? '–'}</p>
+    <p class="goal">🎯 Score à battre : <b>${sh.lowestCounted ?? '–'}</b> <small>${sh.lowestCounted != null ? `(plus bas des ${sh.topN} cartes retenues)` : `(moins de ${sh.topN} cartes : tout score compte)`}</small></p>
+    ${sh.pending ? `<p class="small">${sh.pending} carte(s) pas encore validée(s)</p>` : ''}`}</div>
     <div class="card"><h3>Cartes ${S.year}</h3>${list || '<p>Aucune carte.</p>'}</div>`;
 }
 

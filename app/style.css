@@ -92,3 +92,6 @@ input[type=text], input[type=email], input[type=password], input[type=date], inp
 .poll details { margin:6px 0; } .poll summary { cursor:pointer; font-weight:600; } .poll p { margin:6px 0; }
 .hero { text-align:center; margin:6px 0 2px; } .hero .biglogo { margin-bottom:6px; }
 .hero p { margin:0; color:var(--muted); font-size:14px; letter-spacing:.12em; text-transform:uppercase; font-weight:700; }
+
+.goal { margin:6px 0; padding:8px 10px; border-radius:10px; background:var(--pinksoft); border-left:4px solid var(--pink); }
+.goal small { color:var(--muted); }

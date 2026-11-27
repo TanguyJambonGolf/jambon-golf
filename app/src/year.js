@@ -67,6 +67,9 @@ export function playerSheet(year, playerId) {
     row, counted, cards: mine,
     average: netCards.length ? Math.round((netCards.reduce((s, c) => s + c.net, 0) / netCards.length) * 10) / 10 : null,
     best: netCards.length ? Math.max(...netCards.map(c => c.net)) : null,
+    // plus bas score retenu = la carte à battre pour progresser (seulement quand les N cartes retenues sont complètes)
+    lowestCounted: row && row.netCards.length >= year.topN ? Math.min(...row.netCards.map(c => c.net)) : null,
+    topN: year.topN,
     pending: mine.filter(c => c.status !== 'validee' && c.played > 0).length,
   };
 }
