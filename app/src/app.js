@@ -8,7 +8,7 @@ import { buildYear, playerSheet } from './year.js';
 import { makeGroups, groupSizes, teeTimes, whatsappText, whatsappLink, whatsappToLink, golfMail, mailtoLink, nextGuestCode } from './draw.js';
 import { holePoints, playingHandicap } from '../../engine/engine.js';
 import { prepDay, prepNearestDay, prepNearestAnnual, prepAnnual, prepDraw } from './sharedata.js';
-import { draw as drawImage, toBlob, shareFiles, loadLogo } from './share.js';
+import { draw as drawImage, toBlob, shareFiles, loadLogo, loadFonts } from './share.js';
 
 const $app = document.getElementById('app');
 const ls = window.localStorage;
@@ -152,7 +152,7 @@ function screenNoCode() {
 function screenWho() {
   const reg = S.players.filter(p => !p.is_guest), gst = S.players.filter(p => p.is_guest);
   const btn = p => `<button class="who ${p.id === S.actor ? 'sel' : ''}" data-act="pick" data-id="${esc(p.id)}">${esc(p.display_name)}</button>`;
-  return `<div class="card"><h2>Qui es-tu ?</h2><p>Choisis ton nom, une seule fois. Il sera retenu sur ce téléphone.</p>
+  return `<div class="hero"><img class="biglogo" src="logo.png" alt="Jambon Golf"><p>Since 2019</p></div><div class="card"><h2>Qui es-tu ?</h2><p>Choisis ton nom, une seule fois. Il sera retenu sur ce téléphone.</p>
     <div class="grid2">${reg.map(btn).join('')}</div>${gst.length ? `<h3>Invités</h3><div class="grid2">${gst.map(btn).join('')}</div>` : ''}</div>`;
 }
 
@@ -300,6 +300,7 @@ function screenSheet() {
 // ------------------------------------------------------------------ partage en images
 async function buildShare(from) {
   const logo = await loadLogo();
+  await loadFonts();
   let sets;
   if (from === 'ranking') {
     sets = [{ label: 'Classements de la saison', specs: [prepAnnual(S.yearData), prepNearestAnnual(S.yearData)] }];
