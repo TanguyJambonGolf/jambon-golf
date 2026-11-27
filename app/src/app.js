@@ -435,6 +435,7 @@ function screenContacts() {
 // ------------------------------------------------------------------ sondage hebdomadaire
 const fmtClose = iso => new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Indian/Mauritius' }).replace(':', 'h');
 const pollOpen = p => Date.now() >= Date.parse(p.opens_at) && Date.now() <= Date.parse(p.closes_at);
+const nextThursday = () => { const d = new Date(); d.setDate(d.getDate() + ((4 - d.getDay() + 7) % 7 || 7)); return localDate(d); };
 const closeInput = iso => new Date(Date.parse(iso) + 4 * 3600000).toISOString().slice(0, 16);   // heure de Maurice (UTC+4)
 
 function pollLists() {
@@ -464,7 +465,8 @@ function screenPollAdmin() {
   if (!isAdmin()) return screenAdminLogin();
   const p = S.poll;
   if (!p) return `<button class="link" data-act="admin">‹ Admin</button><div class="card"><h2>Sondage de la semaine</h2><p>Aucun sondage ouvert. Il s'ouvre tout seul le samedi à 8h00 (heure de Maurice) pour le jeudi suivant.</p>
-    <button class="primary" data-act="poll-create">Ouvrir le sondage du prochain jeudi maintenant</button></div>`;
+    <label class="fld">Jeudi de jeu<input type="date" id="poll-date" value="${nextThursday()}"></label>
+    <button class="primary" data-act="poll-create">Ouvrir le sondage maintenant</button></div>`;
   const L = pollLists();
   const courses = `<option value="">— à confirmer —</option>` + S.courses.map(c => `<option value="${esc(c.id)}" ${c.id === p.course_id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
   const rows = S.players.filter(x => !x.is_guest).map(x => { const a = L.ans.get(x.id) || ''; return `<label class="ne"><span>${esc(x.display_name)}</span>
@@ -669,9 +671,11 @@ const actions = {
   },
   'poll-admin': async () => { await loadPoll(); try { if (!S.courses.length) S.courses = await api.courses(); } catch { /* liste des golfs facultative */ } go('pollAdmin'); },
   'poll-create': () => adminDo(async () => {
-    const d = new Date(); d.setDate(d.getDate() + ((4 - d.getDay() + 7) % 7 || 7));
-    const c = new Date(d); c.setDate(c.getDate() - 3);
-    await api.createPoll({ play_date: localDate(d), closes_at: `${localDate(c)}T17:30:00+04:00` });
+    const play = document.getElementById('poll-date')?.value || nextThursday();
+    const d = new Date(play + 'T12:00:00Z');
+    if (d.getUTCDay() !== 4) throw new Error('Choisis un jeudi.');
+    const c = new Date(d); c.setUTCDate(c.getUTCDate() - 3);
+    await api.createPoll({ play_date: play, closes_at: `${c.toISOString().slice(0, 10)}T17:30:00+04:00` });
   }, async () => { await loadPoll(); render(); }),
   pick: async el => { S.actor = el.dataset.id; ls.setItem('golf.actor', S.actor); await openHome(); },
   who: () => go('who'),
