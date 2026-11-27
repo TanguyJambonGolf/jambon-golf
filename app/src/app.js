@@ -20,7 +20,7 @@ const STATUS = { en_cours: 'En cours', a_verifier: 'À vérifier', validee: 'Val
 const S = {
   screen: 'loading', code: ls.getItem('golf.code') || '', actor: ls.getItem('golf.actor') || '',
   players: [], rounds: [], roundId: null, data: null, view: null, groupIdx: 0, hole: 1, online: true, toast: '', error: '',
-  year: new Date().getFullYear(), yearData: null, sheetId: null, courses: [], tees: [], draw: null, guestsOpen: false, newCode: '',
+  polls: [], poll: null, pollAnswers: [], year: new Date().getFullYear(), yearData: null, sheetId: null, courses: [], tees: [], draw: null, guestsOpen: false, newCode: '',
 };
 let api, queue;
 const isAdmin = () => !!api && api.isAdmin();
@@ -44,10 +44,20 @@ async function boot() {
 
 function go(screen, error = '') { S.screen = screen; S.error = error; render(); window.scrollTo(0, 0); }
 
+async function loadPoll() {
+  try {
+    S.polls = await api.polls();
+    const today = localDate();
+    S.poll = S.polls.filter(p => p.play_date >= today).sort((a, b) => (a.play_date < b.play_date ? -1 : 1))[0] || null;
+    S.pollAnswers = S.poll ? await api.pollAnswers(S.poll.id) : [];
+  } catch { /* le sondage n'est pas essentiel */ }
+}
+
 async function openHome() {
   S.roundId = null;
   try { S.rounds = await api.rounds(); S.online = true; }
   catch { S.online = false; }
+  await loadPoll();
   go('home');
   flush();
 }
@@ -107,7 +117,7 @@ setInterval(() => { if (['round', 'hole', 'recap'].includes(S.screen)) (queue.si
 function render() {
   const y = window.scrollY;
   const fn = { loading: () => '<p class="center">Chargement…</p>', offline: screenOffline, nocode: screenNoCode, who: screenWho, home: screenHome, round: screenRound, hole: screenHole, recap: screenRecap,
-    ranking: screenRanking, sheet: screenSheet, share: screenShare, adminLogin: screenAdminLogin, admin: screenAdmin, draw: screenDraw, adminRound: screenAdminRound, guests: screenGuests, settings: screenSettings, code: screenCode }[S.screen];
+    ranking: screenRanking, sheet: screenSheet, share: screenShare, adminLogin: screenAdminLogin, admin: screenAdmin, draw: screenDraw, adminRound: screenAdminRound, guests: screenGuests, settings: screenSettings, code: screenCode, pollAdmin: screenPollAdmin }[S.screen];
   const showNav = !['loading', 'nocode', 'offline', 'who', 'hole', 'recap'].includes(S.screen);
   $app.innerHTML = header() + `<main class="${showNav ? 'withnav' : ''}">${fn()}</main>` + (showNav ? nav() : '') + (S.toast ? `<div class="toast">${esc(S.toast)}</div>` : '');
   window.scrollTo(0, y);
@@ -148,7 +158,7 @@ function screenHome() {
   const today = localDate();
   const list = S.rounds.map(r => `<button class="row big ${r.played_on === today ? 'today' : ''}" data-act="round" data-id="${esc(r.id)}">
       <span><b>${esc(fmtDate(r.played_on))}</b><br><small>${esc(r.courses?.name || '')} · ${{ preparation: 'tirage', en_cours: 'en cours', terminee: 'terminée' }[r.status] || ''}</small></span><span>${r.played_on === today ? 'Aujourd\'hui ›' : '›'}</span></button>`).join('');
-  return `<div class="card"><h2>Journées</h2>${list || '<p>Aucune journée pour le moment. L\'admin doit préparer le tirage.</p>'}</div>
+  return `${pollCard()}<div class="card"><h2>Journées</h2>${list || '<p>Aucune journée pour le moment. L\'admin doit préparer le tirage.</p>'}</div>
     ${api.demo ? '<p class="note">Mode démo : données fictives, uniquement dans ce téléphone. <button class="link" data-act="demoreset">Remettre à zéro</button></p>' : ''}`;
 }
 
@@ -330,10 +340,55 @@ function screenAdminLogin() {
     <button class="primary" data-act="admin-login">Se connecter</button>${api.demo ? '<p class="small">Démo : n\'importe quel e-mail.</p>' : ''}</div>`;
 }
 
+// ------------------------------------------------------------------ sondage hebdomadaire
+const fmtClose = iso => new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Indian/Mauritius' }).replace(':', 'h');
+const pollOpen = p => Date.now() >= Date.parse(p.opens_at) && Date.now() <= Date.parse(p.closes_at);
+const closeInput = iso => new Date(Date.parse(iso) + 4 * 3600000).toISOString().slice(0, 16);   // heure de Maurice (UTC+4)
+
+function pollLists() {
+  const ans = new Map(S.pollAnswers.map(a => [a.player_id, a.answer]));
+  const regs = S.players.filter(p => !p.is_guest);
+  const pick = f => regs.filter(p => f(ans.get(p.id))).map(p => esc(p.display_name));
+  return { ans, oui: pick(a => a === 'oui'), non: pick(a => a === 'non'), sans: pick(a => !a) };
+}
+
+function pollCard() {
+  const p = S.poll;
+  if (!p) return '';
+  const L = pollLists(), open = pollOpen(p), mine = L.ans.get(S.actor);
+  const btn = (a, t) => `<button class="${mine === a ? 'primary' : 'secondary'}" data-act="poll-answer" data-a="${a}" ${open ? '' : 'disabled'}>${t}</button>`;
+  return `<div class="card poll"><h2>${esc(fmtDate(p.play_date).replace(/^./, c => c.toUpperCase()))}</h2>
+    <p>${p.courses?.name ? esc(p.courses.name) : '<small>Golf à confirmer</small>'}</p>
+    <p class="small">${open ? 'Réponds avant ' + esc(fmtClose(p.closes_at)) + ' (heure de Maurice).' : 'Sondage clos depuis ' + esc(fmtClose(p.closes_at)) + '.'}</p>
+    <div class="pollbtns">${btn('oui', 'Je joue')}${btn('non', 'Je ne joue pas')}</div>
+    ${mine ? `<p class="small">Ta réponse : <b>${mine === 'oui' ? 'tu joues' : 'tu ne joues pas'}</b>${open ? ' · <button class="link" data-act="poll-answer" data-a="">effacer</button>' : ''}</p>` : (open ? '<p class="small">Tu n\'as pas encore répondu.</p>' : '')}
+    <p><b>${L.oui.length}</b> jouent · <b>${L.non.length}</b> ne jouent pas · <b>${L.sans.length}</b> sans réponse</p>
+    <details><summary>Qui joue (${L.oui.length})</summary><p>${L.oui.join(', ') || '—'}</p></details>
+    <details><summary>Ne jouent pas (${L.non.length})</summary><p>${L.non.join(', ') || '—'}</p></details>
+    <details><summary>Sans réponse (${L.sans.length})</summary><p>${L.sans.join(', ') || '—'}</p></details></div>`;
+}
+
+function screenPollAdmin() {
+  if (!isAdmin()) return screenAdminLogin();
+  const p = S.poll;
+  if (!p) return `<button class="link" data-act="admin">‹ Admin</button><div class="card"><h2>Sondage de la semaine</h2><p>Aucun sondage ouvert. Il s'ouvre tout seul le samedi à 8h00 (heure de Maurice) pour le jeudi suivant.</p>
+    <button class="primary" data-act="poll-create">Ouvrir le sondage du prochain jeudi maintenant</button></div>`;
+  const L = pollLists();
+  const courses = `<option value="">— à confirmer —</option>` + S.courses.map(c => `<option value="${esc(c.id)}" ${c.id === p.course_id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+  const rows = S.players.filter(x => !x.is_guest).map(x => { const a = L.ans.get(x.id) || ''; return `<label class="ne"><span>${esc(x.display_name)}</span>
+    <select data-act="poll-set" data-p="${esc(x.id)}"><option value="" ${a === '' ? 'selected' : ''}>—</option><option value="oui" ${a === 'oui' ? 'selected' : ''}>Joue</option><option value="non" ${a === 'non' ? 'selected' : ''}>Ne joue pas</option></select></label>`; }).join('');
+  return `<button class="link" data-act="admin">‹ Admin</button><div class="card"><h2>Sondage · ${esc(fmtDate(p.play_date))}</h2>
+    <label class="ne"><span>Golf</span><select data-act="poll-course">${courses}</select></label>
+    <label class="ne"><span>Clôture (heure de Maurice)</span><input type="datetime-local" data-act="poll-close" value="${closeInput(p.closes_at)}"></label>
+    <p class="small">${L.oui.length} jouent · ${L.non.length} ne jouent pas · ${L.sans.length} sans réponse. Le tirage coche automatiquement ceux qui jouent.</p></div>
+    <div class="card"><h3>Réponses (correction par l'admin)</h3>${rows}</div>`;
+}
+
 function screenAdmin() {
   if (!isAdmin()) return screenAdminLogin();
   return `<div class="card"><h2>Admin</h2>
     <button class="primary" data-act="draw-new">Nouvelle journée · tirage</button>
+    <button class="secondary" data-act="poll-admin">Sondage de la semaine</button>
     <button class="secondary" data-act="guests">Invités</button>
     <button class="secondary" data-act="settings">Réglages du classement</button>
     <button class="secondary" data-act="code">Lien d'accès WhatsApp</button>
@@ -357,7 +412,10 @@ async function startDraw() {
   try { cfg = Object.fromEntries((await api.settings()).filter(x => x.key.startsWith('draw_')).map(x => [x.key.slice(5), x.value])); } catch { /* valeurs par défaut */ }
   S.drawCfg = cfg;
   const c0 = cfg[course.id] || {};
-  S.draw = { date: localDate(), courseId: course.id, start: c0.start || '08:00', interval: c0.interval || 8, format: 'auto', present: new Set(), last, groups: null, times: [], sel: null, forced: [], together: [[]] };
+  await loadPoll();
+  const pl = S.poll;
+  const yes = new Set(S.pollAnswers.filter(a => a.answer === 'oui').map(a => a.player_id));
+  S.draw = { date: pl ? pl.play_date : localDate(), courseId: pl && pl.course_id ? pl.course_id : course.id, pollYes: yes.size, start: c0.start || '08:00', interval: c0.interval || 8, format: 'auto', present: new Set(yes), last, groups: null, times: [], sel: null, forced: [], together: [[]] };
   render();
 }
 
@@ -502,6 +560,20 @@ const setScore = (m, sc) => addOp({ type: 'score', card: m.cardId, hole: S.hole,
 const reloadRound = async () => { await refresh(); };
 
 const actions = {
+  'poll-answer': async el => {
+    const a = el.dataset.a || null;
+    try { await api.send({ type: 'poll', poll: S.poll.id, answer: a }, S.code, S.actor); S.pollAnswers = await api.pollAnswers(S.poll.id); render(); }
+    catch (e) { toast(e.network ? 'Pas de réseau : réessaie dans un instant.' : e.message); }
+  },
+  'poll-admin': async () => { await loadPoll(); try { if (!S.courses.length) S.courses = await api.courses(); } catch { /* liste des golfs facultative */ } go('pollAdmin'); },
+  'poll-create': () => adminDo(async () => {
+    const d = new Date(); d.setDate(d.getDate() + ((4 - d.getDay() + 7) % 7 || 7));
+    const c = new Date(d); c.setDate(c.getDate() - 3);
+    await api.createPoll({ play_date: localDate(d), closes_at: `${localDate(c)}T17:30:00+04:00` });
+  }, async () => { await loadPoll(); render(); }),
+  'poll-course': el => adminDo(() => api.patchPoll(S.poll.id, { course_id: el.value || null }), async () => { await loadPoll(); render(); }),
+  'poll-close': el => adminDo(() => api.patchPoll(S.poll.id, { closes_at: el.value + ':00+04:00' }), async () => { await loadPoll(); render(); }),
+  'poll-set': el => adminDo(() => api.setPollAnswer(S.poll.id, el.dataset.p, el.value || null), async () => { S.pollAnswers = await api.pollAnswers(S.poll.id); render(); }),
   pick: async el => { S.actor = el.dataset.id; ls.setItem('golf.actor', S.actor); await openHome(); },
   who: () => go('who'),
   home: () => openHome(),

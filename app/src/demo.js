@@ -57,6 +57,14 @@ export async function createDemoApi(storage) {
   const allHoles = () => courses.flatMap(c => holesOf(c.id));
   const allTees = () => courses.flatMap(c => c.tees.map(t => ({ ...t, course_id: c.id, is_default: !!t.default, par_total: c.par.reduce((a, b) => a + b, 0) })));
   const cardOf = id => st.cards.find(c => c.id === id) || (() => { throw fail('Carte inconnue'); })();
+  // sondage de démonstration : jeudi prochain, clôture le lundi 17h30 (heure de Maurice)
+  if (!st.polls) {
+    const d = new Date(); d.setDate(d.getDate() + ((4 - d.getDay() + 7) % 7 || 7));
+    const c = new Date(d); c.setDate(c.getDate() - 3);
+    st.polls = [{ id: 'poll-demo', play_date: iso(d), course_id: 'mont_choisy', opens_at: new Date(Date.now() - 86400000).toISOString(), closes_at: `${iso(c)}T17:30:00+04:00` }];
+    st.poll_answers = players0.filter(p => !p.is_guest).slice(0, 9).map((p, i) => ({ poll_id: 'poll-demo', player_id: p.id, answer: i % 4 === 3 ? 'non' : 'oui' }));
+    save();
+  }
   const partOf = card => st.participations.find(p => p.id === card.participation_id);
   const needAdmin = () => { if (!st.admin) throw fail('Réservé à l\'admin'); };
 
@@ -64,6 +72,8 @@ export async function createDemoApi(storage) {
     demo: true,
     async checkCode() { return true; },
     async players() { return clone(players()); },
+    async polls() { return clone(st.polls).sort((a, b) => (a.play_date < b.play_date ? 1 : -1)).map(p => ({ ...p, courses: p.course_id ? { name: courseOf(p.course_id).name } : null })); },
+    async pollAnswers(id) { return clone(st.poll_answers.filter(a => a.poll_id === id)); },
     async settings() { return Object.entries(st.settings).map(([key, value]) => ({ key, value })); },
     async courses() { return courses.map((c, i) => ({ id: c.id, name: c.name, sort: i })); },
     async tees() { return allTees(); },
@@ -109,6 +119,12 @@ export async function createDemoApi(storage) {
         if (!inRound(pa.round_id)) throw fail(msg);
         if (st.cards.some(c => c.participation_id === pa.id && c.status === 'validee')) throw fail('Carte validée : handicap verrouillé');
         pa.handicap_index = op.index; pa.playing_handicap = op.playing;
+      } else if (op.type === 'poll') {
+        const po = st.polls.find(x => x.id === op.poll);
+        if (!po) throw fail('Sondage inconnu');
+        if (!st.admin && (Date.now() < Date.parse(po.opens_at) || Date.now() > Date.parse(po.closes_at))) throw fail('Le sondage est clos : contacte l\'admin pour modifier ta réponse');
+        st.poll_answers = st.poll_answers.filter(x => !(x.poll_id === op.poll && x.player_id === actor));
+        if (op.answer) st.poll_answers.push({ poll_id: op.poll, player_id: actor, answer: op.answer });
       } else if (op.type === 'nearest') {
         if (!inRound(op.round)) throw fail(msg);
         st.nearest = st.nearest.filter(x => !(x.round_id === op.round && x.hole_no === op.hole));
@@ -164,6 +180,18 @@ export async function createDemoApi(storage) {
       Object.assign(cardOf(cardId), { mode: 'net', excluded_from_net: false, replaced: false }); save();
     },
     async adminCardStatus(cardId, status) { needAdmin(); cardOf(cardId).status = status; save(); },
+    async createPoll({ play_date, course_id, closes_at }) {
+      needAdmin();
+      if (st.polls.some(p => p.play_date === play_date)) throw fail('Un sondage existe déjà à cette date');
+      const p = { id: uid('poll'), play_date, course_id: course_id || null, opens_at: new Date().toISOString(), closes_at }; st.polls.push(p); save(); return clone(p);
+    },
+    async patchPoll(id, values) { needAdmin(); Object.assign(st.polls.find(p => p.id === id), values); save(); },
+    async setPollAnswer(poll_id, player_id, answer) {
+      needAdmin();
+      st.poll_answers = st.poll_answers.filter(x => !(x.poll_id === poll_id && x.player_id === player_id));
+      if (answer) st.poll_answers.push({ poll_id, player_id, answer });
+      save();
+    },
     async setRoundStatus(id, status) { needAdmin(); st.rounds.find(r => r.id === id).status = status; save(); },
     async setSetting(key, value) { needAdmin(); st.settings[key] = value; save(); },
     async setMemberCode() { needAdmin(); },

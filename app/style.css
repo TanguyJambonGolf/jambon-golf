@@ -69,3 +69,5 @@ input[type=text], input[type=email], input[type=password], input[type=date], inp
 .biglogo { width:140px; height:140px; border-radius:50%; display:block; margin:0 auto 8px; }
 .dl { padding:8px 10px; border-radius:10px; margin:6px 0; background:#f3f6f4; } .dl.mine { background:#e8f5ee; border-left:4px solid var(--g2); } .dl small { color:#456; font-size:14px; }
 .shareimg { margin:10px 0 18px; text-align:center; } .shareimg img { width:100%; border-radius:12px; box-shadow:0 1px 4px #0003; }
+.pollbtns { display:flex; gap:8px; margin:10px 0; } .pollbtns button { flex:1; margin:0; }
+.poll details { margin:6px 0; } .poll summary { cursor:pointer; font-weight:600; } .poll p { margin:6px 0; }

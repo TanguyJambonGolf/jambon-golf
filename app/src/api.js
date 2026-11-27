@@ -67,6 +67,8 @@ export function createApi({ supabaseUrl, supabaseAnonKey }, storage = null) {
     settings: () => get('settings?select=*'),
     courses: () => get('courses?select=id,name,sort&order=sort'),
     tees: () => get('v_tees?select=*&order=course_id'),
+    polls: () => get('polls?select=*,courses(name)&order=play_date.desc&limit=4'),
+    pollAnswers: id => get(`poll_answers?poll_id=eq.${id}`),
     rounds: () => get('rounds?select=id,played_on,status,course_id,courses(name)&order=played_on.desc&limit=40'),
     async round(id) {
       const [rounds, groups, participations, nearest] = await Promise.all([
@@ -98,6 +100,7 @@ export function createApi({ supabaseUrl, supabaseAnonKey }, storage = null) {
         case 'status': return rpc('set_card_status', { ...a, p_card: op.card, p_status: op.status });
         case 'handicap': return rpc('set_participation_handicap', { ...a, p_participation: op.participation, p_index: op.index, p_playing: op.playing });
         case 'nearest': return rpc('set_nearest', { ...a, p_round: op.round, p_hole: op.hole, p_player: op.player });
+        case 'poll': return rpc('answer_poll', { ...a, p_poll: op.poll, p_answer: op.answer });
       }
       throw new Error('Opération inconnue');
     },
@@ -125,6 +128,12 @@ export function createApi({ supabaseUrl, supabaseAnonKey }, storage = null) {
     resetGross: (card, reason) => rpc('admin_reset_gross', { p_card: card, p_reason: reason }),
     adminCardStatus: (card, status) => patch('cards', `id=eq.${card}`, { status }),
     setRoundStatus: (id, status) => patch('rounds', `id=eq.${id}`, { status }),
+    async createPoll({ play_date, course_id, closes_at }) { return (await insert('polls', [{ play_date, course_id: course_id || null, closes_at }]))[0]; },
+    patchPoll: (id, values) => patch('polls', `id=eq.${id}`, values),
+    async setPollAnswer(poll_id, player_id, answer) {
+      if (!answer) return call(`poll_answers?poll_id=eq.${poll_id}&player_id=eq.${player_id}`, { method: 'DELETE' });
+      return call('poll_answers?on_conflict=poll_id,player_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' }, body: JSON.stringify([{ poll_id, player_id, answer }]) });
+    },
     setSetting: (key, value) => call('settings?on_conflict=key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify([{ key, value }]) }),
     setMemberCode: code => rpc('admin_set_member_code', { p_code: code }),
     auditLog: () => get('audit_log?select=at,actor,table_name,action,record&order=at.desc&limit=100'),
