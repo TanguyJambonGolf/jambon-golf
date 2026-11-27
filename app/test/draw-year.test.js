@@ -119,3 +119,22 @@ test('mail au golf : objet, départs et lien mailto', () => {
   assert.ok(l.startsWith('mailto:resa@golf.mu?subject=')); assert.match(decodeURIComponent(l), /08:00 : A/);
   assert.equal(whatsappToLink('+230 5123 4567', 'x'), 'https://wa.me/23051234567?text=x');
 });
+
+test('historique importé : les 9 meilleurs scores + le brut comptent, le nearest aussi', () => {
+  const players = [{ id: 'a', display_name: 'A', is_guest: false }, { id: 'b', display_name: 'B', is_guest: false }];
+  const hs = [];
+  for (let i = 0; i < 11; i++) hs.push({ id: 'a' + i, played_on: `2026-02-${String(i + 1).padStart(2, '0')}`, player_id: 'a', kind: 'net', points: 20 + i });  // 20..30 : on garde 30..22
+  hs.push({ id: 'ag', played_on: '2026-11-26', player_id: 'a', kind: 'gross', points: 15 });
+  hs.push({ id: 'b0', played_on: '2026-02-01', player_id: 'b', kind: 'net', points: 40 });
+  hs.push({ id: 'x', played_on: '2025-12-31', player_id: 'b', kind: 'net', points: 99 });   // autre année : ignoré
+  const data = { rounds: [], participations: [], cards: [], hole_scores: [], holes: [], tees: [], nearest: [], settings: [],
+    history_scores: hs, history_nearest: [{ played_on: '2026-02-01', seq: 1, player_id: 'a' }, { played_on: '2026-02-01', seq: 2, player_id: 'a' }] };
+  const y = buildYear(data, players, 2026);
+  const a = y.ranking.find(r => r.playerId === 'a'), b = y.ranking.find(r => r.playerId === 'b');
+  assert.equal(a.netTotal, 30 + 29 + 28 + 27 + 26 + 25 + 24 + 23 + 22);
+  assert.equal(a.grossPoints, 15);
+  assert.equal(a.total, 234 + 15);
+  assert.equal(b.total, 40);
+  assert.equal(y.ranking[0].playerId, 'a');
+  assert.equal(y.nearest.find(n => n.playerId === 'a').wins, 2);
+});

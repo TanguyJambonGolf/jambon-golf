@@ -97,7 +97,11 @@ export function createApi({ supabaseUrl, supabaseAnonKey }, storage = null) {
       const participations = rids.length ? await getIn('participations', 'round_id', rids) : [];
       const cards = participations.length ? await getIn('cards', 'participation_id', participations.map(p => p.id)) : [];
       const [hole_scores, nearest] = await Promise.all([cards.length ? getIn('hole_scores', 'card_id', cards.map(c => c.id)) : [], rids.length ? getIn('nearest_entries', 'round_id', rids) : []]);
-      return { rounds, participations, cards, hole_scores, holes, nearest, settings };
+      const [history_scores, history_nearest] = await Promise.all([
+        get(`history_scores?select=*&played_on=gte.${y}-01-01&played_on=lte.${y}-12-31`).catch(() => []),
+        get(`history_nearest?select=*&played_on=gte.${y}-01-01&played_on=lte.${y}-12-31`).catch(() => []),
+      ]);
+      return { rounds, participations, cards, hole_scores, holes, nearest, settings, history_scores, history_nearest };
     },
     send(op, code, actor) {
       const a = { p_code: code, p_actor: actor };

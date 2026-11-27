@@ -32,10 +32,21 @@ export function buildYear(data, players, year) {
       hj: pa.playing_handicap, index: pa.handicap_index,
     });
   }
+  // Historique importé de l'ancienne appli : un score Stableford par joueur et par journée, sans détail trou par trou
+  for (const h of data.history_scores || []) {
+    if (String(h.played_on).slice(0, 4) !== String(year)) continue;
+    const net = h.kind === 'net';
+    cards.push({
+      id: 'h-' + h.id, playerId: h.player_id, roundId: null, courseId: null, date: h.played_on, status: 'validee', mode: net ? 'net' : 'gross',
+      excludedFromNet: !net, replaced: false, net: net ? h.points : 0, gross: net ? 0 : h.points, strokes: 0, played: 18, hj: null, index: null, imported: true,
+    });
+  }
   const ranking = annualRanking(players.map(p => ({ id: p.id, name: p.display_name, isGuest: p.is_guest })), cards, { topN });
 
   const nearestEntries = data.nearest.filter(n => roundOf.has(n.round_id) && String(roundOf.get(n.round_id).played_on).slice(0, 4) === String(year))
-    .map(n => ({ roundId: n.round_id, holeNo: n.hole_no, playerId: n.player_id, isGuest: !!pl.get(n.player_id)?.is_guest }));
+    .map(n => ({ roundId: n.round_id, holeNo: n.hole_no, playerId: n.player_id, isGuest: !!pl.get(n.player_id)?.is_guest }))
+    .concat((data.history_nearest || []).filter(n => String(n.played_on).slice(0, 4) === String(year))
+      .map(n => ({ roundId: 'h-' + n.played_on, holeNo: n.seq, playerId: n.player_id, isGuest: false })));
   const nearest = nearestRanking(nearestEntries).map(r => ({ ...r, name: pl.get(r.playerId)?.display_name }));
 
   const guestParts = data.participations.filter(p => pl.get(p.player_id)?.is_guest && roundOf.has(p.round_id))

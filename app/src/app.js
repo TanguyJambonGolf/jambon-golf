@@ -14,7 +14,7 @@ const $app = document.getElementById('app');
 const ls = window.localStorage;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const localDate = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const FIRST_YEAR = 2026;   // TEST du 03/12/2026 : remettre 2027 au reset des données
+const FIRST_YEAR = 2026;   // saison 2026 = historique importé de l'ancienne appli
 const seasonNow = () => Math.max(FIRST_YEAR, new Date().getFullYear());
 const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const STATUS = { en_cours: 'En cours', a_verifier: 'À vérifier', validee: 'Validée ✔' };
@@ -293,8 +293,8 @@ function screenSheet() {
   const list = sh.cards.map(c => {
     const tags = [c.mode === 'gross' && !c.replaced ? '<span class="tag gross">Gross</span>' : '', c.replaced ? '<span class="tag">Remplacée</span>' : '', sh.counted.has(c.id) ? '<span class="tag ok">Retenue</span>' : '',
       c.status !== 'validee' ? `<span class="tag warn">${STATUS[c.status]}</span>` : ''].join('');
-    const act = adm && c.status === 'validee' && !p.is_guest && !(c.mode === 'gross' && !c.replaced) && !c.replaced ? `<button class="link" data-act="setgross" data-card="${esc(c.id)}">Définir comme carte gross</button>` : '';
-    return `<div class="row col"><div class="rowtop"><span><b>${esc(fmtDate(c.date).replace(/^\w+ /, ''))}</b><br><small>${esc(roundName(c))} · HJ ${c.hj}</small></span><span class="pts">${c.net}<small> net</small><br><small>${c.gross} brut</small></span></div><div>${tags}</div>${act}</div>`;
+    const act = adm && !c.imported && c.status === 'validee' && !p.is_guest && !(c.mode === 'gross' && !c.replaced) && !c.replaced ? `<button class="link" data-act="setgross" data-card="${esc(c.id)}">Définir comme carte gross</button>` : '';
+    return `<div class="row col"><div class="rowtop"><span><b>${esc(fmtDate(c.date).replace(/^\w+ /, ''))}</b><br><small>${c.imported ? (c.mode === 'gross' ? 'Points brut (historique)' : 'Historique importé') : `${esc(roundName(c))} · HJ ${c.hj}`}</small></span><span class="pts">${c.imported && c.mode === 'gross' ? `${c.gross}<small> brut</small>` : `${c.net}<small> net</small>${c.imported ? '' : `<br><small>${c.gross} brut</small>`}`}</span></div><div>${tags}</div>${act}</div>`;
   }).join('');
   return `<button class="link" data-act="ranking">‹ Classement</button>
     <div class="card"><h2>${esc(p.display_name)}</h2>${p.is_guest ? '<p class="note">Invité : pas de classement annuel.</p>' : `<p><b>${sh.row ? sh.row.total : 0} pts</b> · rang ${sh.row ? sh.row.rank : '-'}</p>
