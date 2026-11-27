@@ -67,6 +67,9 @@ export function createApi({ supabaseUrl, supabaseAnonKey }, storage = null) {
     settings: () => get('settings?select=*'),
     courses: () => get('courses?select=id,name,sort&order=sort'),
     tees: () => get('v_tees?select=*&order=course_id'),
+    async vapidKey() { return (await rpc('vapid_public_key', {})) || null; },
+    savePush: (sub, code, actor) => rpc('save_push_subscription', { p_code: code, p_actor: actor, p_endpoint: sub.endpoint, p_p256dh: sub.p256dh, p_auth: sub.auth }),
+    deletePush: (endpoint, code, actor) => rpc('delete_push_subscription', { p_code: code, p_actor: actor, p_endpoint: endpoint }),
     polls: () => get('polls?select=*,courses(name)&order=play_date.desc&limit=4'),
     pollAnswers: id => get(`poll_answers?poll_id=eq.${id}`),
     rounds: () => get('rounds?select=id,played_on,status,course_id,courses(name)&order=played_on.desc&limit=40'),
@@ -128,6 +131,14 @@ export function createApi({ supabaseUrl, supabaseAnonKey }, storage = null) {
     resetGross: (card, reason) => rpc('admin_reset_gross', { p_card: card, p_reason: reason }),
     adminCardStatus: (card, status) => patch('cards', `id=eq.${card}`, { status }),
     setRoundStatus: (id, status) => patch('rounds', `id=eq.${id}`, { status }),
+    // Envoi de notifications (fonction Supabase « send-push », réservée à l'admin connecté)
+    async notify(type, extra = {}, retry = true) {
+      const r = await raw(`${supabaseUrl}/functions/v1/send-push`, { method: 'POST', headers: hdr(), body: JSON.stringify({ type, ...extra }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.status === 401 && session && retry) { await auth({ refresh_token: session.refresh_token }, 'refresh_token'); return this.notify(type, extra, false); }
+      if (!r.ok) throw Object.assign(new Error(j.error || 'Envoi impossible'), r.status >= 500 ? { network: true } : { business: true });
+      return j;
+    },
     async createPoll({ play_date, course_id, closes_at }) { return (await insert('polls', [{ play_date, course_id: course_id || null, closes_at }]))[0]; },
     patchPoll: (id, values) => patch('polls', `id=eq.${id}`, values),
     async setPollAnswer(poll_id, player_id, answer) {

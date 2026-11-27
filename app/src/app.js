@@ -20,7 +20,7 @@ const STATUS = { en_cours: 'En cours', a_verifier: 'À vérifier', validee: 'Val
 const S = {
   screen: 'loading', code: ls.getItem('golf.code') || '', actor: ls.getItem('golf.actor') || '',
   players: [], rounds: [], roundId: null, data: null, view: null, groupIdx: 0, hole: 1, online: true, toast: '', error: '',
-  contacts: {}, polls: [], poll: null, pollAnswers: [], year: new Date().getFullYear(), yearData: null, sheetId: null, courses: [], tees: [], draw: null, guestsOpen: false, newCode: '',
+  push: { state: 'unknown' }, contacts: {}, polls: [], poll: null, pollAnswers: [], year: new Date().getFullYear(), yearData: null, sheetId: null, courses: [], tees: [], draw: null, guestsOpen: false, newCode: '',
 };
 let api, queue;
 const isAdmin = () => !!api && api.isAdmin();
@@ -58,6 +58,7 @@ async function openHome() {
   try { S.rounds = await api.rounds(); S.online = true; }
   catch { S.online = false; }
   await loadPoll();
+  await refreshPush();
   go('home');
   flush();
 }
@@ -159,7 +160,7 @@ function screenHome() {
   const today = localDate();
   const list = S.rounds.map(r => `<button class="row big ${r.played_on === today ? 'today' : ''}" data-act="round" data-id="${esc(r.id)}">
       <span><b>${esc(fmtDate(r.played_on))}</b><br><small>${esc(r.courses?.name || '')} · ${{ preparation: 'tirage', en_cours: 'en cours', terminee: 'terminée' }[r.status] || ''}</small></span><span>${r.played_on === today ? 'Aujourd\'hui ›' : '›'}</span></button>`).join('');
-  return `${pollCard()}<div class="card"><h2>Journées</h2>${list || '<p>Aucune journée pour le moment. L\'admin doit préparer le tirage.</p>'}</div>
+  return `${pollCard()}${pushCard()}<div class="card"><h2>Journées</h2>${list || '<p>Aucune journée pour le moment. L\'admin doit préparer le tirage.</p>'}</div>
     ${api.demo ? '<p class="note">Mode démo : données fictives, uniquement dans ce téléphone. <button class="link" data-act="demoreset">Remettre à zéro</button></p>' : ''}`;
 }
 
@@ -341,6 +342,64 @@ function screenAdminLogin() {
     <button class="primary" data-act="admin-login">Se connecter</button>${api.demo ? '<p class="small">Démo : n\'importe quel e-mail.</p>' : ''}</div>`;
 }
 
+// ------------------------------------------------------------------ notifications (Web Push)
+const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const b64ToBytes = b => { const p = '='.repeat((4 - (b.length % 4)) % 4), s = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(s, c => c.charCodeAt(0)); };
+
+async function refreshPush() {
+  if (api.demo) { S.push = { state: 'demo' }; return; }
+  if (!pushSupported()) { S.push = { state: isIos() && !isStandalone() ? 'ios-install' : 'unsupported' }; return; }
+  if (Notification.permission === 'denied') { S.push = { state: 'denied' }; return; }
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    S.push = { state: sub && ls.getItem('golf.pushActor') === S.actor ? 'on' : 'off' };
+  } catch { S.push = { state: 'off' }; }
+}
+
+async function enablePush() {
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { S.push = { state: perm === 'denied' ? 'denied' : 'off' }; return render(); }
+    const reg = await navigator.serviceWorker.register('sw.js');
+    await navigator.serviceWorker.ready;
+    const key = await api.vapidKey();
+    if (!key) throw new Error('Notifications non disponibles pour le moment');
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+    const j = sub.toJSON();
+    await api.savePush({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }, S.code, S.actor);
+    ls.setItem('golf.pushActor', S.actor);
+    S.push = { state: 'on' }; toast('Notifications activées sur ce téléphone.');
+  } catch (e) { toast('Activation impossible : ' + (e.message || e)); await refreshPush(); render(); }
+}
+
+async function disablePush() {
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg ? await reg.pushManager.getSubscription() : null;
+    if (sub) { await api.deletePush(sub.endpoint, S.code, S.actor).catch(() => {}); await sub.unsubscribe(); }
+    ls.removeItem('golf.pushActor'); S.push = { state: 'off' }; toast('Notifications désactivées sur ce téléphone.');
+  } catch (e) { toast(e.message || String(e)); }
+}
+
+function pushCard() {
+  const st = S.push.state;
+  if (st === 'on' || st === 'demo' || st === 'unknown' || st === 'unsupported') return st === 'on' ? '<p class="note">🔔 Notifications activées. <button class="link" data-act="push-off">Désactiver</button></p>' : '';
+  if (st === 'ios-install') return `<div class="card"><h3>🔔 Notifications</h3><p class="small">Sur iPhone, ajoute d'abord l'appli à l'écran d'accueil : bouton Partager, puis « Sur l'écran d'accueil ». Ouvre-la ensuite depuis l'icône pour activer les notifications.</p></div>`;
+  if (st === 'denied') return `<div class="card"><h3>🔔 Notifications</h3><p class="small">Les notifications sont bloquées pour cette appli. Autorise-les dans les réglages du téléphone (Notifications), puis reviens ici.</p></div>`;
+  return `<div class="card"><h3>🔔 Notifications</h3><p class="small">Sois prévenu à l'ouverture du sondage, au rappel du lundi et quand le tirage est publié.</p><button class="primary" data-act="push-on">Activer les notifications</button></div>`;
+}
+
+async function sendNotify(type, extra = {}) {
+  try {
+    const r = await api.notify(type, extra);
+    toast(r.note || `${r.sent ?? 0} notification(s) envoyée(s)${r.failed ? ', ' + r.failed + ' en échec' : ''}.`);
+  } catch (e) { toast(e.network ? 'Pas de réseau.' : e.message); }
+}
+
 // ------------------------------------------------------------------ envoi du tirage au golf
 async function loadContacts() {
   S.contacts = Object.fromEntries((await api.settings()).filter(x => x.key.startsWith('contact_')).map(x => [x.key.slice(8), x.value]));
@@ -356,7 +415,8 @@ function golfSendBlock(v) {
     <p class="small">${c.email ? 'E-mail : ' + esc(c.email) : 'Pas d\'e-mail enregistré pour ce golf : ton application mail s\'ouvrira sans destinataire.'}</p>
     <a class="btn mail" href="${esc(mail)}">Envoyer par e-mail</a>
     ${c.whatsapp ? `<a class="btn secondary" href="${esc(wa)}" target="_blank" rel="noopener">Envoyer par WhatsApp (${esc(c.whatsapp)})</a>` : ''}
-    <button class="link" data-act="contacts">Modifier les contacts des golfs</button>`;
+    <button class="link" data-act="contacts">Modifier les contacts des golfs</button>
+    <h3>Notifications</h3><button class="secondary" data-act="notify-draw">Notifier les joueurs du tirage</button>`;
 }
 
 function screenContacts() {
@@ -408,7 +468,9 @@ function screenPollAdmin() {
   return `<button class="link" data-act="admin">‹ Admin</button><div class="card"><h2>Sondage · ${esc(fmtDate(p.play_date))}</h2>
     <label class="ne"><span>Golf</span><select data-act="poll-course">${courses}</select></label>
     <label class="ne"><span>Clôture (heure de Maurice)</span><input type="datetime-local" data-act="poll-close" value="${closeInput(p.closes_at)}"></label>
-    <p class="small">${L.oui.length} jouent · ${L.non.length} ne jouent pas · ${L.sans.length} sans réponse. Le tirage coche automatiquement ceux qui jouent.</p></div>
+    <p class="small">${L.oui.length} jouent · ${L.non.length} ne jouent pas · ${L.sans.length} sans réponse. Le tirage coche automatiquement ceux qui jouent.</p>
+    <button class="secondary" data-act="notify-poll" data-t="poll_open">Annoncer l'ouverture maintenant (notification)</button>
+    <button class="secondary" data-act="notify-poll" data-t="poll_reminder">Relancer ceux qui n'ont pas répondu (notification)</button></div>
     <div class="card"><h3>Réponses (correction par l'admin)</h3>${rows}</div>`;
 }
 
@@ -418,6 +480,7 @@ function screenAdmin() {
     <button class="primary" data-act="draw-new">Nouvelle journée · tirage</button>
     <button class="secondary" data-act="poll-admin">Sondage de la semaine</button>
     <button class="secondary" data-act="contacts">Contacts des golfs (envoi du tirage)</button>
+    <button class="secondary" data-act="notify-test">Tester les notifications (sur mon téléphone)</button>
     <button class="secondary" data-act="guests">Invités</button>
     <button class="secondary" data-act="settings">Réglages du classement</button>
     <button class="secondary" data-act="code">Lien d'accès WhatsApp</button>
@@ -589,6 +652,11 @@ const setScore = (m, sc) => addOp({ type: 'score', card: m.cardId, hole: S.hole,
 const reloadRound = async () => { await refresh(); };
 
 const actions = {
+  'push-on': () => enablePush(),
+  'push-off': () => disablePush(),
+  'notify-test': () => sendNotify('test'),
+  'notify-draw': () => sendNotify('draw', { round_id: S.roundId }),
+  'notify-poll': el => sendNotify(el.dataset.t),
   contacts: async () => { try { S.courses = await api.courses(); await loadContacts(); } catch (e) { return toast(e.message); } go('contacts'); },
   'poll-answer': async el => {
     const a = el.dataset.a || null;
@@ -725,5 +793,5 @@ $app.addEventListener('change', e => {
   if (el && el.matches('select,input') && changes[el.dataset.act]) changes[el.dataset.act](el);
 });
 
-window.__golf = { S, get api() { return api; }, get queue() { return queue; } };   // utile pour les tests
+window.__golf = { S, render, get api() { return api; }, get queue() { return queue; } };   // utile pour les tests
 boot().catch(e => { S.screen = 'nocode'; S.error = 'Erreur de démarrage : ' + e.message; render(); });
