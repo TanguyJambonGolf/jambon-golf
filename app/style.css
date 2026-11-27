@@ -16,7 +16,8 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 body { margin:0; font:16px/1.4 -apple-system, system-ui, sans-serif; background:var(--bg); color:var(--t); padding-bottom:env(safe-area-inset-bottom); }
 h2, h3, header b { font-family:var(--display); font-weight:400; letter-spacing:.01em; }
-header { position:sticky; top:0; z-index:5; display:flex; gap:8px; align-items:center; background:var(--navy); color:#fff; padding:calc(10px + env(safe-area-inset-top)) 14px 10px; border-bottom:3px solid var(--pink); }
+header { position:sticky; top:0; z-index:5; display:flex; gap:8px; align-items:center; background:var(--navy); color:#fff; padding:calc(10px + env(safe-area-inset-top)) 14px 14px; }
+header::after { content:''; position:absolute; left:0; right:0; bottom:0; height:4px; background:linear-gradient(to right, #EA2839 0 25%, #1A206D 25% 50%, #FFD500 50% 75%, #00A551 75% 100%); }
 header b { flex:1; font-size:18px; }
 header .link { color:#fff; text-decoration:underline; }
 main { padding:12px; max-width:560px; margin:0 auto; }

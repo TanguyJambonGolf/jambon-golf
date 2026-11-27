@@ -26,7 +26,7 @@ function fit(ctx, text, x, y, maxW, size, weight = '600', align = 'left', family
 
 function header(ctx, spec, logo) {
   ctx.fillStyle = C.green; ctx.fillRect(0, 0, W, 250);
-  ctx.fillStyle = C.green2; ctx.fillRect(0, 244, W, 6);
+  ['#EA2839', '#1A206D', '#FFD500', '#00A551'].forEach((c, i) => { ctx.fillStyle = c; ctx.fillRect(i * W / 4, 242, W / 4 + 1, 8); });
   if (logo) {
     ctx.save(); ctx.beginPath(); ctx.arc(130, 125, 90, 0, Math.PI * 2); ctx.closePath(); ctx.fillStyle = '#fff'; ctx.fill(); ctx.clip();
     ctx.drawImage(logo, 40, 35, 180, 180); ctx.restore();
