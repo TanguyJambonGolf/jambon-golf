@@ -244,11 +244,14 @@ function screenHole() {
     <div class="dots">${dots}</div><button class="secondary" data-act="recap">Récap et validation</button>`;
 }
 
+/** Signalétique standard du golf sur le score brut : cercle = birdie, double cercle = eagle, triple = albatros, carré = bogey, double carré = double bogey. */
+const scoreMark = d => (d <= -3 ? 'm-alb' : d === -2 ? 'm-eag' : d === -1 ? 'm-bir' : d === 1 ? 'm-bog' : d === 2 ? 'm-dbl' : '');
+
 function screenRecap() {
   const v = S.view, g = curGroup(), adm = isAdmin();
   const blocks = g.members.map(m => {
     const t = m.totals;
-    const cells = t.perHole.map(p => `<span class="cell ${p.done ? '' : 'empty'}"><i>${p.hole}</i>${p.pickup ? '✗' : p.strokes ?? '·'}</span>`).join('');
+    const cells = t.perHole.map(p => `<span class="cell ${p.done ? '' : 'empty'}"><i>${p.hole}</i>${p.pickup ? '✗' : p.strokes == null ? '·' : `<span class="sc ${scoreMark(p.strokes - p.par)}">${p.strokes}</span>`}</span>`).join('');
     const ed = canEdit(v, S.actor, m, adm);
     let act = '';
     if (m.status === 'validee') act = `<p class="note">Validée${m.validatedBy ? ' par ' + esc(m.validatedBy) : ''}. Scores verrouillés.</p>`;
@@ -264,7 +267,8 @@ function screenRecap() {
       <div class="cells">${cells}</div>
       <p class="tot"><b>${t.net}</b> pts net · ${t.gross} pts brut · ${t.strokesTotal} coups</p>${act}</div>`;
   }).join('');
-  return `<button class="link" data-act="round-back">‹ Groupe ${g.number}</button><h2>Récap du groupe ${g.number}</h2>${blocks}`;
+  return `<button class="link" data-act="round-back">‹ Groupe ${g.number}</button><h2>Récap du groupe ${g.number}</h2>${blocks}
+    <p class="legend"><span class="sc m-bir">3</span> birdie · <span class="sc m-eag">2</span> eagle · <span class="sc m-alb">1</span> albatros · <span class="sc m-bog">5</span> bogey · <span class="sc m-dbl">6</span> double bogey<br>Signes sur le score brut, par rapport au par du trou.</p>`;
 }
 
 // ------------------------------------------------------------------ classement annuel et fiches

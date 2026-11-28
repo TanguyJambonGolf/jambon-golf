@@ -95,3 +95,13 @@ input[type=text], input[type=email], input[type=password], input[type=date], inp
 
 .goal { margin:6px 0; padding:8px 10px; border-radius:10px; background:var(--pinksoft); border-left:4px solid var(--pink); }
 .goal small { color:var(--muted); }
+
+/* Signalétique golf sur le score brut */
+.sc { display:inline-block; min-width:1.45em; line-height:1.45em; text-align:center; box-sizing:border-box; }
+.m-bir { border:1.5px solid currentColor; border-radius:50%; }
+.m-eag { border:1.5px solid currentColor; border-radius:50%; box-shadow:0 0 0 1.5px var(--surface2), 0 0 0 2.7px currentColor; }
+.m-alb { border:1.5px solid currentColor; border-radius:50%; box-shadow:0 0 0 1.5px var(--surface2), 0 0 0 2.7px currentColor, 0 0 0 4.2px var(--surface2), 0 0 0 5.4px currentColor; }
+.m-bog { border:1.5px solid currentColor; border-radius:2px; }
+.m-dbl { border:1.5px solid currentColor; border-radius:2px; box-shadow:0 0 0 1.5px var(--surface2), 0 0 0 2.7px currentColor; }
+.legend { font-size:13px; color:var(--muted); text-align:center; line-height:2.2; margin:14px 0; } .legend .sc { color:var(--t); margin:0 4px; }
+.cells { gap:5px; } .cell { padding:4px 0; }
