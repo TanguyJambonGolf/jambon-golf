@@ -5,7 +5,7 @@ import { createDemoApi } from './demo.js';
 import { createQueue } from './queue.js';
 import { buildRoundView, canEdit, canValidate, inDraw, stepScore, strokesReceived, crossScore } from './model.js';
 import { buildYear, playerSheet } from './year.js';
-import { makeGroups, groupSizes, teeTimes, whatsappText, whatsappLink, whatsappToLink, golfMail, mailtoLink, nextGuestCode } from './draw.js';
+import { makeGroups, pairHistory, diversityReport, groupSizes, teeTimes, whatsappText, whatsappLink, whatsappToLink, golfMail, mailtoLink, nextGuestCode } from './draw.js';
 import { holePoints, playingHandicap } from '../../engine/engine.js';
 import { prepDay, prepNearestDay, prepNearestAnnual, prepAnnual, prepDraw } from './sharedata.js';
 import { draw as drawImage, toBlob, shareFiles, loadLogo, loadFonts } from './share.js';
@@ -538,10 +538,16 @@ function forceCards() {
 
 function drawPresentIds() { return [...S.draw.present]; }
 
-function generateDraw() {
+async function loadPairHist() {
+  try { S.pairHist = pairHistory(await api.pairHistory()); } catch { S.pairHist = pairHistory([]); }
+  return S.pairHist;
+}
+
+async function generateDraw() {
   const D = S.draw, ids = drawPresentIds();
   try {
-    const groups = makeGroups(ids, { format: D.format, forced: D.forced, together: D.together.map(r => r.filter(Boolean)) });
+    const hist = await loadPairHist();
+    const groups = makeGroups(ids, { format: D.format, forced: D.forced, together: D.together.map(r => r.filter(Boolean)), pairCost: hist.cost });
     D.times = teeTimes(D.start, groups.length, D.interval);
     D.groups = groups.map(g => ({ markerId: g[0], players: g.map(id => ({ id, teeId: defTee(D.courseId)?.id, index: D.last[id] ?? NaN })) }));
     D.sel = null;
@@ -586,7 +592,9 @@ function screenDraw() {
         <span class="hjv">HJ ${Number.isFinite(p.index) ? hjFor(tee, p.index) : '–'}</span></div>`; }).join('')}
     <label class="fld">Marqueur<select data-act="draw-marker" data-g="${gi}">${g.players.map(p => `<option value="${esc(p.id)}" ${p.id === g.markerId ? 'selected' : ''}>${name(p.id)}</option>`).join('')}</select></label></div>`).join('');
   const missing = D.groups.flatMap(g => g.players).filter(p => !Number.isFinite(p.index)).length;
-  return form + `<h2>Tirage</h2><p class="small">Touche un joueur puis un autre pour les échanger de groupe. Index : le dernier connu est proposé, à vérifier.</p>${groups}
+  const div = S.pairHist && S.pairHist.draws ? diversityReport(D.groups.map(g => g.players.map(p => p.id)), S.pairHist) : null;
+  const divTxt = div ? `<p class="goal">🔀 Diversité : <b>${div.fresh}</b> paires sur ${div.pairs} ne se sont jamais croisées${div.max > 1 ? ` · paire la plus répétée : ${div.max} fois` : ''}.</p>` : '';
+  return form + `<h2>Tirage</h2>${divTxt}<p class="small">Touche un joueur puis un autre pour les échanger de groupe. Index : le dernier connu est proposé, à vérifier.</p>${groups}
     <div class="card"><h3>Texte WhatsApp</h3><pre class="wa">${esc(text)}</pre><a class="btn" href="${esc(whatsappLink(text))}" target="_blank" rel="noopener">Partager sur WhatsApp</a>
     ${missing ? `<p class="note">${missing} index manquant(s) : ils seront à saisir avant le départ (la journée affichera « index à saisir »).</p>` : ''}
     <button class="primary" data-act="draw-save">Valider et créer la journée</button></div>`;

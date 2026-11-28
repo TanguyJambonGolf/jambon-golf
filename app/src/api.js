@@ -90,6 +90,28 @@ export function createApi({ supabaseUrl, supabaseAnonKey }, storage = null) {
       const hole_scores = cards.length ? await getIn('hole_scores', 'card_id', cards.map(c => c.id)) : [];
       return { round, course: round.courses, holes, groups, participations, tees, cards, hole_scores, nearest };
     },
+    // Tirages passés (du plus ancien au plus récent) : historique importé + journées de la nouvelle appli, pour varier les groupes
+    async pairHistory() {
+      const [old, rounds, groups, parts] = await Promise.all([
+        get('history_groups?select=played_on,group_no,player_ids&order=played_on').catch(() => []),
+        get('rounds?select=id,played_on&status=in.(en_cours,terminee)').catch(() => []),
+        get('groups?select=id,round_id').catch(() => []),
+        get('participations?select=round_id,group_id,player_id&group_id=not.is.null').catch(() => []),
+      ]);
+      const byDate = new Map();
+      for (const h of old) { if (!byDate.has(h.played_on)) byDate.set(h.played_on, []); byDate.get(h.played_on).push(h.player_ids); }
+      const dateOf = new Map(rounds.map(r => [r.id, r.played_on]));
+      const byGroup = new Map();
+      for (const p of parts) { if (!dateOf.has(p.round_id)) continue; if (!byGroup.has(p.group_id)) byGroup.set(p.group_id, []); byGroup.get(p.group_id).push(p.player_id); }
+      for (const g of groups) {
+        const d = dateOf.get(g.round_id), ids = byGroup.get(g.id);
+        if (!d || !ids) continue;
+        const key = d + '#' + g.round_id;
+        if (!byDate.has(key)) byDate.set(key, []);
+        byDate.get(key).push(ids);
+      }
+      return [...byDate.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([, gs]) => gs);
+    },
     async year(y) {
       const rounds = await get(`rounds?select=*&played_on=gte.${y}-01-01&played_on=lte.${y}-12-31&order=played_on`);
       const rids = rounds.map(r => r.id);

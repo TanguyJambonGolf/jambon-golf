@@ -148,3 +148,29 @@ test('fiche joueur : plus bas score retenu = carte à battre', () => {
   assert.equal(playerSheet(y, 'a').lowestCounted, 22);   // 9 meilleures : 30..22
   assert.equal(playerSheet(y, 'b').lowestCounted, null); // moins de 9 cartes : tout score compte
 });
+
+test('diversité : le tirage évite les paires déjà vues', async () => {
+  const { pairHistory, diversityReport, makeGroups } = await import('../src/draw.js');
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  // historique : a/b/c/d toujours ensemble, e/f/g/h toujours ensemble
+  const hist = pairHistory(Array.from({ length: 6 }, () => [['a', 'b', 'c', 'd'], ['e', 'f', 'g', 'h']]));
+  let rng = 12345; const rand = () => (rng = (rng * 1664525 + 1013904223) % 4294967296) / 4294967296;
+  const g = makeGroups(ids, { rng: rand, pairCost: hist.cost });
+  const rep = diversityReport(g, hist);
+  assert.equal(rep.pairs, 12);
+  assert.equal(rep.fresh, 8);                      // 2 anciens partenaires au plus ensemble par groupe : on prend le meilleur mélange (2+2)
+  assert.ok(g.every(grp => grp.length === 4));
+  // sans historique, comportement inchangé (aucune contrainte)
+  assert.equal(makeGroups(ids, { rng: rand }).flat().length, 8);
+});
+
+test('diversité : joueurs imposés et paires à réunir sont respectés', async () => {
+  const { pairHistory, makeGroups } = await import('../src/draw.js');
+  const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  const hist = pairHistory([[['a', 'b', 'c', 'd'], ['e', 'f', 'g', 'h']]]);
+  for (let i = 0; i < 20; i++) {
+    const g = makeGroups(ids, { forced: [['a', 'b']], together: [['e', 'f']], pairCost: hist.cost });
+    assert.ok(g[0].includes('a') && g[0].includes('b'));
+    assert.ok(g.some(grp => grp.includes('e') && grp.includes('f')));
+  }
+});

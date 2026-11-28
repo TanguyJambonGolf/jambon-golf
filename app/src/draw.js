@@ -21,6 +21,41 @@ export function shuffle(arr, rng = Math.random) {
   return a;
 }
 
+const pairKey = (a, b) => (a < b ? a + '|' + b : b + '|' + a);
+
+/**
+ * Historique des paires. draws : [ [ [id, id, id], [id, ...] ], ... ] = les tirages passés (un tirage = liste de groupes),
+ * du plus ancien au plus récent. Renvoie { count(a,b), cost(a,b), draws } :
+ *  cost = nombre de fois ensemble au carré (répéter 2 fois coûte plus que 2 paires différentes) + un petit malus si c'était récent.
+ */
+export function pairHistory(draws) {
+  const count = new Map(), last = new Map();
+  draws.forEach((groups, di) => groups.forEach(g => {
+    for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
+      const k = pairKey(g[i], g[j]);
+      count.set(k, (count.get(k) || 0) + 1); last.set(k, di);
+    }
+  }));
+  const n = draws.length;
+  return {
+    draws: n,
+    count: (a, b) => count.get(pairKey(a, b)) || 0,
+    cost: (a, b) => { const k = pairKey(a, b), c = count.get(k) || 0; return c ? c * c + 1 / (2 + (n - 1 - last.get(k))) : 0; },
+  };
+}
+
+/** Bilan de diversité d'un tirage : paires jamais jouées ensemble, paires déjà vues, la plus répétée. */
+export function diversityReport(groups, hist) {
+  let pairs = 0, fresh = 0, max = 0, maxPair = null;
+  for (const g of groups) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) {
+    pairs++;
+    const c = hist.count(g[i], g[j]);
+    if (!c) fresh++;
+    if (c > max) { max = c; maxPair = [g[i], g[j]]; }
+  }
+  return { pairs, fresh, repeated: pairs - fresh, max, maxPair };
+}
+
 /** Fusionne les ensembles de joueurs qui se recoupent ([a,b] et [b,c] -> [a,b,c]). */
 function mergeSets(sets) {
   const out = [];
@@ -39,7 +74,7 @@ function mergeSets(sets) {
  *  together : [[a, b], [c, d, e], ...] joueurs à mettre dans le même groupe (n'importe lequel)
  * Retourne un tableau de groupes (listes d'identifiants).
  */
-export function makeGroups(playerIds, { format = 'auto', forced = [], together = [], rng = Math.random } = {}) {
+export function makeGroups(playerIds, { format = 'auto', forced = [], together = [], rng = Math.random, pairCost = null, restarts = 60 } = {}) {
   const sizes = groupSizes(playerIds.length, format);
   const present = new Set(playerIds), where = new Map();
   const groups = sizes.map(() => []);
@@ -68,7 +103,39 @@ export function makeGroups(playerIds, { format = 'auto', forced = [], together =
     if (room(gi) < free.length) throw new Error(`Groupe ${gi + 1} : pas assez de place pour réunir les joueurs demandés.`);
     for (const id of free) { groups[gi].push(id); where.set(id, gi); }
   }
-  const rest = shuffle(playerIds.filter(id => !where.has(id)), rng);
+  const free = playerIds.filter(id => !where.has(id));
+  if (pairCost && free.length > 1) {
+    // Diversité : on répartit les joueurs libres pour que le moins de paires déjà vues se retrouvent ensemble
+    // (plusieurs départs au hasard + échanges tant que ça améliore). Les joueurs imposés / à mettre ensemble ne bougent pas.
+    const open = [];
+    groups.forEach((g, i) => { for (let k = g.length; k < sizes[i]; k++) open.push(i); });
+    const total = a => {
+      const gs = groups.map(g => g.slice());
+      open.forEach((gi, j) => gs[gi].push(a[j]));
+      let c = 0;
+      for (const g of gs) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) c += pairCost(g[i], g[j]);
+      return c;
+    };
+    let best = null, bestC = Infinity;
+    for (let r = 0; r < restarts; r++) {
+      const a = shuffle(free, rng);
+      let c = total(a), improved = true;
+      while (improved) {
+        improved = false;
+        for (let j = 0; j < a.length; j++) for (let k = j + 1; k < a.length; k++) {
+          if (open[j] === open[k]) continue;
+          [a[j], a[k]] = [a[k], a[j]];
+          const c2 = total(a);
+          if (c2 < c - 1e-9) { c = c2; improved = true; } else [a[j], a[k]] = [a[k], a[j]];
+        }
+      }
+      if (c < bestC - 1e-9) { bestC = c; best = a.slice(); }
+    }
+    const rest = best.slice();
+    groups.forEach((g, i) => { while (g.length < sizes[i]) g.push(rest.shift()); });
+    return groups;
+  }
+  const rest = shuffle(free, rng);
   groups.forEach((g, i) => { while (g.length < sizes[i]) g.push(rest.shift()); });
   return groups;
 }

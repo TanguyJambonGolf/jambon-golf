@@ -87,6 +87,7 @@ export async function createDemoApi(storage) {
       return clone({ round: r, course: { id: c.id, name: c.name }, holes: holesOf(c.id), groups: st.groups.filter(g => g.round_id === id), participations: parts,
         tees: allTees().filter(t => t.course_id === c.id), cards, hole_scores: st.hole_scores.filter(s => cards.some(x => x.id === s.card_id)), nearest: st.nearest.filter(x => x.round_id === id) });
     },
+    async pairHistory() { return []; },
     async year(y) {
       const rounds = st.rounds.filter(r => r.played_on.slice(0, 4) === String(y)), rids = new Set(rounds.map(r => r.id));
       const participations = st.participations.filter(p => rids.has(p.round_id)), pids = new Set(participations.map(p => p.id));
